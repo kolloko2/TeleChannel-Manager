@@ -3,7 +3,8 @@ FROM ubuntu:22.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
-    qt5-default \
+    qtbase5-dev \
+    qt5-qmake \
     libqt5network5 \
     libqt5sql5 \
     cmake \
@@ -12,7 +13,6 @@ RUN apt-get update && apt-get install -y \
     libssl-dev \
     zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
-
 
 # Устанавливаем рабочую директорию
 WORKDIR /app
@@ -30,8 +30,5 @@ RUN cd client && \
     make
 
 
-ENV BOT_TOKEN=your_bot_token_here
 
 CMD ["/app/Server/Server"]
-
-# CMD ["/app/client/your_client_executable"]
