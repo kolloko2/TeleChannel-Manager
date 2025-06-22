@@ -10,10 +10,7 @@ SOURCES += \
     authwindow.cpp \
     clientnetwork.cpp \
     telegrammanager.cpp \
-    test_authwindow.cpp \
-    test_mainwindow.cpp \
-    test_clientnetwork.cpp \
-    test_telegrammanager.cpp
+
 
 HEADERS += \
     mainwindow.h \

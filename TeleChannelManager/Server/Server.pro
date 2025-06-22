@@ -9,9 +9,6 @@ SOURCES += \
     main.cpp \
     servercontroller.cpp \
     servermodel.cpp \
-    test_database.cpp \
-    test_servermodel.cpp \
-    test_servercontroller.cpp
 
 HEADERS += \
     database.h \
