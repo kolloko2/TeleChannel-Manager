@@ -39,6 +39,7 @@ private:
     void handleGetChatMemberError(qint64 chatId, const QString &displayName, const QString &errorMsg, const QByteArray &response);
     void handleSendMessageResponse(const QJsonObject &root, qint64 chatId);
     void handleDeleteCommentsResponse(const QJsonObject &root, int minWords, const QStringList &bannedWords);
+
 };
 
 #endif

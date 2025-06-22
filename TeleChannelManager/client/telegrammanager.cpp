@@ -99,14 +99,15 @@ void TelegramManager::onNetworkReplyFinished(QNetworkReply *reply)
         qDebug() << "Ошибка сети в" << requestType << ":" << errorString << "(API error: " << apiError << ")";
         if (requestType == "getChatMember") {
             handleGetChatMemberError(reply->property("chatId").toLongLong(), reply->property("chatName").toString(), apiError, response);
-        } else {
+        }
+
+        else {
             emit errorOccurred("Ошибка сети в " + requestType + ": " + apiError);
         }
         return;
     }
 
     qDebug() << "Ответ от" << requestType << ":" << response;
-
     QJsonDocument jsonDoc = QJsonDocument::fromJson(response);
     if (jsonDoc.isNull() || !jsonDoc.isObject()) {
         emit errorOccurred("Некорректный JSON в ответе " + requestType + ": " + QString(response));
@@ -193,7 +194,7 @@ void TelegramManager::checkAdminStatus(qint64 chatId, const QString &displayName
     QUrl url(QString("https://api.telegram.org/bot%1/getChatMember").arg(m_botToken));
     QUrlQuery query;
     query.addQueryItem("chat_id", QString::number(chatId));
-    query.addQueryItem("user_id", "7863567289"); // ID бота @BotAdminTest123_bot
+    query.addQueryItem("user_id", "7863567289"); // тута указал ID бота @BotAdminTest123_bot
 
     QNetworkRequest request{QUrl(url)};
     request.setHeader(QNetworkRequest::ContentTypeHeader, "application/x-www-form-urlencoded");
@@ -212,12 +213,13 @@ void TelegramManager::handleGetChatMemberResponse(const QJsonObject &root, qint6
 {
     QJsonObject result = root.value("result").toObject();
     QString status = result.value("status").toString();
+    bool canDeleteMessages = result.value("can_delete_messages").toBool();
 
-    if (status == "administrator") {
+    if (status == "administrator" && canDeleteMessages) {
         m_tempChats.append(qMakePair(displayName.trimmed(), chatId));
-        qDebug() << "Бот является администратором в канале" << displayName << "(ID:" << chatId << ")";
+        qDebug() << "Бот является администратором с правом удаления в канале" << displayName << "(ID:" << chatId << ")";
     } else {
-        qDebug() << "Бот не является администратором в канале" << displayName << "(ID:" << chatId << ", статус:" << status << ")";
+        qDebug() << "Бот не имеет прав на удаление в канале" << displayName << "(ID:" << chatId << ", статус:" << status << ", can_delete_messages:" << canDeleteMessages << ")";
     }
 
     m_pendingChatChecks--;
@@ -277,7 +279,7 @@ void TelegramManager::handleDeleteCommentsResponse(const QJsonObject &root, int 
         QJsonObject chat = targetMsg.value("chat").toObject();
 
         QString chatType = chat.value("type").toString();
-        if (chatType != "channel") {
+        if (chatType != "channel" && chatType != "supergroup" ) {
             continue;
         }
 
