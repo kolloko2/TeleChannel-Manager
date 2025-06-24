@@ -39,20 +39,4 @@ HEADERS += \
 
 FORMS += \
     ../client/mainwindow.ui \
-    ../client/authwindow.ui
 
-# Настройки VCPKG (если используются)
-VCPKG_ROOT = C:/vcpkg
-VCPKG_INSTALLED = $${VCPKG_ROOT}/installed/x64-mingw-static
-INCLUDEPATH += "$${VCPKG_INSTALLED}/include"
-
-win32-g++ {
-    CONFIG(debug, debug|release) {
-        LIBS += -L"$${VCPKG_INSTALLED}/debug/lib"
-    } else {
-        LIBS += -L"$${VCPKG_INSTALLED}/lib"
-    }
-    LIBS += -lws2_32 -lcrypt32 -lbcrypt -luserenv -ladvapi32
-    QMAKE_CXXFLAGS += -std=c++17
-    QMAKE_LFLAGS += -static
-}

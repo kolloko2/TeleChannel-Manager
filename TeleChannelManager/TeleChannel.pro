@@ -7,16 +7,6 @@ QT += core widgets
 CONFIG += c++17
 
 # Клиентская часть (GUI)
-SOURCES += \
-    main.cpp \
-    mainwindow.cpp
-
-HEADERS += \
-    mainwindow.h
-
-FORMS += \
-    mainwindow.ui
-
 
 
 # Установка версии приложения
