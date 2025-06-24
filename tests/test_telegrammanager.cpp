@@ -1,73 +1,80 @@
-/**
- * @file test_telegrammanager.cpp
- * @brief Unit tests for TelegramManager class of TeleChannel Manager client.
- * @author Vladimir Ilyin
- * @date 2025-06-22
- */
+#include "test_telegrammanager.h"
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QSignalSpy>
 
-#include <QtTest/QtTest>
-#include <QNetworkAccessManager>
-#include <QNetworkReply>
-#include "telegrammanager.h"
+void TestTelegramManager::initTestCase() {
+    // Создаем мок для сетевого менеджера
+    mockNetworkManager = new MockNetworkAccessManager(this);
+    // Создаем объект TelegramManager
+    manager = new TelegramManager(this);
+    // Инициализируем с тестовым токеном
+    manager->initialize("mock_bot_token");
+    // Заменяем реальный сетевой менеджер на мок
+    manager->m_networkManager = mockNetworkManager;
+}
 
-/**
- * @class TestTelegramManager
- * @brief Test suite for TelegramManager class.
- */
-class TestTelegramManager : public QObject {
-    Q_OBJECT
+void TestTelegramManager::cleanupTestCase() {
+    // Очищаем ресурсы
+    delete manager;
+}
 
-private:
-    TelegramManager *manager;
+void TestTelegramManager::testSendMessage() {
+    // Создаем мок для ответа Telegram API
+    MockNetworkReply *reply = new MockNetworkReply();
+    QJsonObject response;
+    response["ok"] = true;
+    response["result"] = QJsonObject{{"message_id", 123}, {"chat", QJsonObject{{"id", 456}}}};
+    reply->setResponse(QJsonDocument(response).toJson());
+    mockNetworkManager->setNextReply(reply);
 
-private slots:
-    /**
-     * @brief Initialize test case.
-     */
-    void initTestCase() {
-        manager = new TelegramManager(this);
-        QVERIFY2(manager != nullptr, "TelegramManager instance should be created.");
-    }
+    // Отслеживаем сигналы ошибок
+    QSignalSpy errorSpy(manager, &TelegramManager::errorOccurred);
+    // Отправляем тестовое сообщение
+    manager->sendMessage(456, "Тестовое сообщение");
 
-    /**
-     * @brief Test initialization with valid token.
-     */
-    void testInitialization() {
-        manager->initialize("bot:123456789:ABC");
-        QVERIFY2(!manager->property("m_botToken").toString().isEmpty(), "Bot token should be set.");
-    }
+    // Проверяем, что ошибок не было
+    QVERIFY(errorSpy.count() == 0);
+    // Проверяем, что запрос был для отправки сообщения
+    QVERIFY(reply->property("requestType").toString() == "sendMessage");
+    // Проверяем, что ID чата корректен
+    QVERIFY(reply->property("chatId").toLongLong() == 456);
+}
 
-    /**
-     * @brief Test getChats with empty token.
-     */
-    void testGetChatsEmptyToken() {
-        QSignalSpy errorSpy(manager, &TelegramManager::errorOccurred);
-        manager->initialize("");
-        manager->getChats();
-        QVERIFY2(errorSpy.count() == 1, "Empty token should trigger error.");
-        QList<QVariant> args = errorSpy.takeFirst();
-        QCOMPARE(args.at(0).toString(), QString("Токен бота не установлен"), "Error message should match.");
-    }
+void TestTelegramManager::testDeleteCommentsWithFilter() {
+    // Создаем мок для ответа getUpdates
+    MockNetworkReply *reply = new MockNetworkReply();
+    QJsonObject response;
+    response["ok"] = true;
+    QJsonArray updates;
+    QJsonObject msg1;
+    msg1["message_id"] = 1;
+    msg1["chat"] = QJsonObject{{"id", 123}, {"type", "channel"}};
+    msg1["text"] = "Короткое";
+    updates.append(QJsonObject{{"message", msg1}});
+    QJsonObject msg2;
+    msg2["message_id"] = 2;
+    msg2["chat"] = QJsonObject{{"id", 123}, {"type", "channel"}};
+    msg2["text"] = "Это длинное сообщение для теста";
+    updates.append(QJsonObject{{"message", msg2}});
+    response["result"] = updates;
+    reply->setResponse(QJsonDocument(response).toJson());
+    mockNetworkManager->setNextReply(reply);
 
-    /**
-     * @brief Test sendMessage with empty token.
-     */
-    void testSendMessageEmptyToken() {
-        QSignalSpy errorSpy(manager, &TelegramManager::errorOccurred);
-        manager->initialize("");
-        manager->sendMessage(12345, "Test message");
-        QVERIFY2(errorSpy.count() == 1, "Empty token should trigger error.");
-        QList<QVariant> args = errorSpy.takeFirst();
-        QCOMPARE(args.at(0).toString(), QString("Токен бота не установлен"), "Error message should match.");
-    }
+    // Создаем мок для ответа deleteMessage
+    MockNetworkReply *deleteReply = new MockNetworkReply();
+    deleteReply->setResponse(QJsonDocument(QJsonObject{{"ok", true}}).toJson());
+    mockNetworkManager->setNextReply(deleteReply);
 
-    /**
-     * @brief Cleanup test case.
-     */
-    void cleanupTestCase() {
-        delete manager;
-    }
-};
+    // Отслеживаем сигналы ошибок
+    QSignalSpy errorSpy(manager, &TelegramManager::errorOccurred);
+    // Вызываем удаление комментариев с фильтром (мин. 5 слов)
+    manager->deleteCommentsWithFilter(5, QStringList());
 
-QTEST_MAIN(TestTelegramManager)
-#include "test_telegrammanager.moc"
+    // Проверяем, что ошибок не было
+    QVERIFY(errorSpy.count() == 0);
+    // Проверяем, что запрос на удаление был отправлен
+    QVERIFY(deleteReply->property("requestType").toString() == "deleteMessage");
+    // Проверяем, что удалено сообщение с ID 1 (короткое)
+    QVERIFY(deleteReply->property("messageId").toInt() == 1);
+}
