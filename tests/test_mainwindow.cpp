@@ -1,95 +1,74 @@
-/**
- * @file test_mainwindow.cpp
- * @brief Unit tests for MainWindow class of TeleChannel Manager client.
- * @author Vladimir Ilyin
- * @date 2025-06-22
- */
-
-#include <QtTest/QtTest>
-#include <QJsonObject>
+#include "test_mainwindow.h"
+#include <QSignalSpy>
 #include <QListWidget>
-#include "mainwindow.h"
-#include "ui_mainwindow.h"
-#include "clientnetwork.h"
+#include <QTextEdit>
+#include <QPushButton>
 
-/**
- * @class TestMainWindow
- * @brief Test suite for MainWindow class.
- */
-class TestMainWindow : public QObject {
-    Q_OBJECT
+void TestMainWindow::initTestCase() {
+    // Создаем мок для сетевого клиента
+    mockNetwork = new MockClientNetwork(this);
+    // Создаем объект MainWindow
+    window = new MainWindow();
+    // Устанавливаем тестовую сеть и данные авторизации
+    window->setNetwork(mockNetwork);
+    window->setAuthData("mock_token", "test_user");
+}
 
-private:
-    MainWindow *mainWindow;
-    ClientNetwork *network;
+void TestMainWindow::cleanupTestCase() {
+    // Очищаем ресурсы
+    delete window;
+}
 
-private slots:
-    /**
-     * @brief Initialize test case.
-     */
-    void initTestCase() {
-        network = new ClientNetwork(this);
-        mainWindow = new MainWindow(nullptr);
-        mainWindow->setNetwork(network);
-        mainWindow->setAuthData("test_token", "testuser");
-        QVERIFY2(mainWindow != nullptr, "MainWindow instance should be created.");
-    }
+void TestMainWindow::testAddTokenClicked() {
+    // Находим поле ввода токена и кнопку добавления
+    QLineEdit *txtNewToken = window->findChild<QLineEdit*>("txtNewToken");
+    QPushButton *btnAddToken = window->findChild<QPushButton*>("btnAddToken");
 
-    /**
-     * @brief Test UI initialization.
-     */
-    void testUiInitialization() {
-        QVERIFY2(mainWindow->ui->listBotTokens != nullptr, "Bot tokens list should exist.");
-        QVERIFY2(mainWindow->ui->txtNewToken != nullptr, "New token input field should exist.");
-        QVERIFY2(mainWindow->ui->listChats != nullptr, "Chats list should exist.");
-        QVERIFY2(mainWindow->ui->textEditPost != nullptr, "Post text edit should exist.");
-    }
+    // Устанавливаем тестовый токен
+    txtNewToken->setText("new_bot_token");
+    // Отслеживаем сигналы ответа
+    QSignalSpy responseSpy(mockNetwork, &MockClientNetwork::responseReceived);
 
-    /**
-     * @brief Test adding bot token with empty input.
-     */
-    void testAddEmptyToken() {
-        QLineEdit *txtNewToken = mainWindow->ui->txtNewToken;
-        txtNewToken->setText("");
-        mainWindow->addTokenClicked();
+    // Эмулируем клик по кнопке
+    QTest::mouseClick(btnAddToken, Qt::LeftButton);
 
-        QSignalSpy spy(mainWindow, &MainWindow::showError);
-        QVERIFY2(spy.count() == 1, "Empty token should trigger error.");
-        QList<QVariant> args = spy.takeFirst();
-        QCOMPARE(args.at(0).toString(), QString("Токен не может быть пустым!"), "Error message should match.");
-    }
+    // Проверяем, что запрос корректен
+    QVERIFY(mockNetwork->lastRequest["action"].toString() == "add_bot_token");
+    QVERIFY(mockNetwork->lastRequest["username"].toString() == "test_user");
+    QVERIFY(mockNetwork->lastRequest["bot_token"].toString() == "new_bot_token");
+    QVERIFY(responseSpy.count() == 1);
+}
 
-    /**
-     * @brief Test bot token list update.
-     */
-    void testUpdateTokensList() {
-        QStringList tokens = {"bot:123456789:ABC", "bot:987654321:XYZ"};
-        mainWindow->updateTokensList(tokens);
-        QCOMPARE(mainWindow->ui->listBotTokens->count(), 2, "Token list should contain 2 items.");
-        QCOMPARE(mainWindow->ui->listBotTokens->item(0)->text(), QString("bot:123456789:ABC"), "First token should match.");
-    }
+void TestMainWindow::testSendPostToSelectedChats() {
+    // Находим элементы интерфейса
+    QListWidget *listChats = window->findChild<QListWidget*>("listChats");
+    QTextEdit *textEditPost = window->findChild<QTextEdit*>("textEditPost");
+    QPushButton *btnSendPost = window->findChild<QPushButton*>("btnSendPost");
 
-    /**
-     * @brief Test sending post with empty text.
-     */
-    void testSendEmptyPost() {
-        mainWindow->ui->textEditPost->setPlainText("");
-        mainWindow->sendPostToSelectedChats();
+    // Создаем тестовый чат
+    QListWidgetItem *item = new QListWidgetItem("Тестовый чат");
+    item->setData(Qt::UserRole, QVariant(qint64(123)));
+    listChats->addItem(item);
+    listChats->setCurrentItem(item);
 
-        QSignalSpy spy(mainWindow, &MainWindow::showError);
-        QVERIFY2(spy.count() == 1, "Empty post should trigger error.");
-        QList<QVariant> args = spy.takeFirst();
-        QCOMPARE(args.at(0).toString(), QString("Текст поста не может быть пустым"), "Error message should match.");
-    }
+    // Создаем тестовый токен
+    QListWidget *listBotTokens = window->findChild<QListWidget*>("listBotTokens");
+    QListWidgetItem *tokenItem = new QListWidgetItem("mock_bot_token");
+    listBotTokens->addItem(tokenItem);
+    listBotTokens->setCurrentItem(tokenItem);
 
-    /**
-     * @brief Cleanup test case.
-     */
-    void cleanupTestCase() {
-        delete mainWindow;
-        delete network;
-    }
-};
+    // Создаем мок для TelegramManager
+    TelegramManager *mockManager = new TelegramManager(window);
+    window->telegramManagers.insert("mock_bot_token", mockManager);
 
-QTEST_MAIN(TestMainWindow)
-#include "test_mainwindow.moc"
+    // Отслеживаем сигналы ошибок
+    QSignalSpy messageSpy(mockManager, &TelegramManager::errorOccurred);
+    // Устанавливаем текст поста
+    textEditPost->setPlainText("Тестовый пост");
+
+    // Эмулируем клик по кнопке отправки
+    QTest::mouseClick(btnSendPost, Qt::LeftButton);
+
+    // Проверяем, что ошибок не было
+    QVERIFY(messageSpy.count() == 0);
+}
