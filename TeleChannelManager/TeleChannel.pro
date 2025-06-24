@@ -1,12 +1,10 @@
 TEMPLATE = subdirs
 SUBDIRS += Server \
-    client
+    client \
     tests
 
 QT += core widgets
 CONFIG += c++17
-
-
 
 # Клиентская часть (GUI)
 SOURCES += \
